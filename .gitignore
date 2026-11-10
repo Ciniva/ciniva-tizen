@@ -1,0 +1,6 @@
+*.wgt
+node_modules/
+.buildResult/
+.sign/
+.tproject
+.project

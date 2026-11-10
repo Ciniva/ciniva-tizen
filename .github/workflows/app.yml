@@ -1,0 +1,47 @@
+name: App
+
+# Tags (v<VERSION>) publish a release; pull requests and manual runs on any branch only build (artifact).
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Version
+        run: |
+          v=$(tr -d ' \r\n' < VERSION)
+          if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ] && [ "v$v" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match VERSION $v"
+            exit 1
+          fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+      - name: Check (Tizen 5.5 runs Chromium 69)
+        run: sh scripts/check.sh
+      # Unsigned: whoever installs it signs it with their own Tizen author certificate (see README).
+      - name: Package
+        run: |
+          wgt="Ciniva-$VERSION-tizen.wgt"
+          (cd src && zip -q -r -X "../$wgt" .)
+          echo "WGT=$wgt" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Ciniva-${{ env.VERSION }}-tizen
+          path: ${{ env.WGT }}
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then echo "v$VERSION is already released."; exit 0; fi
+          gh release create "v$VERSION" "$WGT" --title "Ciniva for Samsung TV $VERSION" --generate-notes --target "$GITHUB_SHA"
