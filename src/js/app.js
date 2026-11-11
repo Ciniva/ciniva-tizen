@@ -4,7 +4,7 @@
   const C = window.C;
   const h = C.h;
 
-  C.VERSION = '0.3.0';
+  C.VERSION = '0.3.1';
 
   const stack = [];
   const host = () => document.getElementById('screens');

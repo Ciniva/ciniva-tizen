@@ -3,7 +3,8 @@
 //
 // - The UI is fetched only when signed in (plugin files need a Ciniva session); sign-in itself runs the bundled UI.
 // - The last server UI that started is kept in localStorage, so it still starts when the server is down. A new download
-//   waits as `uiNext` and only replaces the kept one once it has started.
+//   waits as `uiNext` and only replaces the kept one once it has started. When the server answers with nothing newer
+//   than the package (the plugin was updated or rolled back to it), the kept copy is dropped.
 // - A server UI declares the oldest shell it works with (`shell` in ui.json). A newer requirement keeps the bundled UI
 //   until this package is updated.
 // - A server UI that never finishes starting is skipped on the next launch (C.app calls CinivaShell.started()).
@@ -66,6 +67,9 @@
   const usable = (ui) => !!ui && ui.shell <= SHELL && read('uiBad') !== id(ui);
 
   /// The server's UI when it's newer than `bundled` and runs on this shell; downloads it unless already here.
+  /// BUNDLED when the server answers with nothing newer than the package: its interface is the package's (or older),
+  /// so a kept copy from earlier is stale. null when the server's newer UI can't be used; throws when unreachable.
+  const BUNDLED = {};
   async function fromServer(bundled, kept) {
     const server = read('server');
     const token = read('token');
@@ -73,7 +77,8 @@
     const m = parse(await get(server + PLUGIN + 'ui.json', token, 4000));
     if (!m || !m.version) return null;
     m.build = m.build || '';
-    if (!newer(m.version, bundled.version) || !usable(m)) return null;
+    if (!newer(m.version, bundled.version)) return BUNDLED;
+    if (!usable(m)) return null;
     // `build` fingerprints the files, so a different build under the same version is downloaded again.
     const same = (ui) => !!ui && ui.version === m.version && ui.build === m.build;
     if (same(kept)) return kept;
@@ -122,6 +127,12 @@
       } catch (e) {
         // Server or plugin unreachable: keep going with what's here.
       }
+      if (ui === BUNDLED) {
+        write('ui', null);
+        write('uiNext', null);
+        ui = null;
+        kept = null;
+      }
       if (!ui && kept && newer(kept.version, bundled.version)) {
         ui = kept;
         source = 'kept';
@@ -133,7 +144,7 @@
 
   // Load order if ui.json can't be read; kept in step with ui.json by scripts/check.sh.
   const FALLBACK = {
-    version: '0.3.0',
+    version: '0.3.1',
     shell: 1,
     css: ['css/app.css'],
     js: ['js/util.js', 'js/api.js', 'js/focus.js', 'js/keyboard.js', 'js/ui.js', 'js/episodes.js', 'js/plugins.js',
