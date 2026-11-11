@@ -16,18 +16,22 @@
 
 ## Install
 
-Releases contain an **unsigned** `Ciniva-<version>-tizen.wgt`. Sign it with your Tizen author certificate and install it to a TV in developer mode, whose Host PC IP is the machine you install from:
-
-The Tizen CLI doesn't re-sign a finished `.wgt`, so unpack it and package the directory:
+Releases contain `Ciniva-<version>-tizen.wgt`, signed with the Ciniva author certificate. Install it on a TV in developer mode whose Host PC IP is the machine you install from:
 
 ```sh
-mkdir ciniva && cd ciniva && unzip ../Ciniva-0.2.1-tizen.wgt && cd ..
-tizen package -t wgt -s <certificate profile> -- ciniva
 sdb connect <tv ip>
-tizen install -n "$(basename ciniva/*.wgt)" -t <tv name from sdb devices> -- ciniva   # the signed package tizen package wrote into ciniva/
+tizen install -n Ciniva-<version>-tizen.wgt -t <tv name from sdb devices>
 ```
 
-Use the same certificate for every version; the TV refuses to upgrade an app signed with a different one. The app can't update itself, because installing packages needs a platform privilege. It does show in Settings when a newer release exists.
+To install a build you signed yourself (for example a pull request's unsigned artifact), unpack it and package the directory, since the Tizen CLI doesn't re-sign a finished `.wgt`:
+
+```sh
+mkdir ciniva && cd ciniva && unzip ../Ciniva-<version>-tizen.wgt && cd ..
+tizen package -t wgt -s <certificate profile> -- ciniva
+tizen install -n "$(basename ciniva/*.wgt)" -t <tv name from sdb devices> -- ciniva
+```
+
+The TV refuses to upgrade an app signed with a different certificate, so a TV with a self-signed build needs it uninstalled before installing a release. The app can't update itself, because installing packages needs a platform privilege. It does show in Settings when a newer release exists.
 
 ## Develop
 
@@ -56,4 +60,4 @@ Code map (`src/js`, classic scripts on one `window.C` namespace, in load order):
 
 ## Releases
 
-Pull requests and manual runs build the `.wgt` as a workflow artifact. Pushing a tag `v<VERSION>` (matching `VERSION`) publishes release `v<VERSION>` with the `.wgt`.
+Pull requests and manual runs of the App workflow build an unsigned `.wgt` as a workflow artifact. Pushing a tag `v<VERSION>` (matching `VERSION`, on `main`) runs the Release workflow. It waits for approval in the `release` environment, which holds the signing secrets, then signs the app and publishes release `v<VERSION>` with the signed `.wgt` and its SHA-256.
