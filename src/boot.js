@@ -162,7 +162,7 @@
 
   // Load order if ui.json can't be read; kept in step with ui.json by scripts/check.sh.
   const FALLBACK = {
-    version: '0.3.1',
+    version: '0.4.0',
     shell: 1,
     css: ['css/app.css'],
     js: ['js/util.js', 'js/api.js', 'js/focus.js', 'js/keyboard.js', 'js/ui.js', 'js/episodes.js', 'js/plugins.js',
