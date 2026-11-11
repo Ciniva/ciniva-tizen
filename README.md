@@ -17,8 +17,11 @@
 
 Releases contain an **unsigned** `Ciniva-<version>-tizen.wgt`. Sign it with your Tizen author certificate and install it to a TV in developer mode, whose Host PC IP is the machine you install from:
 
+The Tizen CLI doesn't re-sign a finished `.wgt`, so unpack it and package the directory:
+
 ```sh
-tizen package -t wgt -s <certificate profile> -- Ciniva-0.1.0-tizen.wgt
+mkdir ciniva && cd ciniva && unzip ../Ciniva-0.1.0-tizen.wgt && cd ..
+tizen package -t wgt -s <certificate profile> -- ciniva
 sdb connect <tv ip>
 tizen install -n Ciniva-0.1.0-tizen.wgt -t <tv name from sdb devices>
 ```
