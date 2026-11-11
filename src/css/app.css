@@ -281,6 +281,9 @@ p.error { font-size: 24px; min-height: 34px; margin: 6px 0; }
 .setting-value { max-width: 760px; margin-left: 40px; overflow: hidden; color: var(--muted); font-size: 26px; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .setting.focused { background: var(--text); color: var(--bg); }
 .setting.focused .setting-value, .setting.focused .setting-help { color: #3a4154; }
+/* Information rows: focusable only so the list can scroll to them; a ring, not the "press OK" fill. */
+.setting.static.focused { background: transparent; color: var(--text); box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.35); }
+.setting.static.focused .setting-value { color: var(--muted); }
 
 .plugin-view { width: 1560px; }
 .plugin-text { color: var(--soft); font-size: 26px; margin: 10px 0; }

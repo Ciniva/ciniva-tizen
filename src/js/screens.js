@@ -181,8 +181,9 @@
     const list = h('div.settings', { 'data-nav': 'column' });
     const body = h('div.scroll', { 'data-scroll': '', 'data-pad': '90' }, h('div.page-head', h('h1', 'Settings')), list);
 
+    // Rows without an action still take focus, so the remote can scroll down to them (About is the last section).
     function item(label, value, onclick) {
-      return h(onclick ? 'div.setting.f' : 'div.setting.static', { onclick: onclick }, h('div.setting-label', label), h('div.setting-value', value));
+      return h(onclick ? 'div.setting.f' : 'div.setting.f.static', { onclick: onclick }, h('div.setting-label', label), h('div.setting-value', value));
     }
     function pick(title, options, prefName, fallback) {
       const cur = C.pref(prefName, fallback);
