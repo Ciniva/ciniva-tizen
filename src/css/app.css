@@ -230,20 +230,24 @@ h2.section { font-size: 24px; font-weight: 700; text-transform: uppercase; lette
 /* ---- Fields and keyboard ---- */
 
 .field { margin: 22px 0; }
-.field-label { font-size: 24px; color: var(--muted); margin-bottom: 10px; }
-.field-box { display: flex; align-items: center; height: 84px; padding: 0 26px; border-radius: 16px; border: 3px solid var(--line); background: var(--surface); font-size: 34px; overflow: hidden; white-space: nowrap; }
-.field-text.placeholder { color: #5d6478; }
-.caret { width: 3px; height: 42px; margin-left: 3px; background: var(--accent); animation: blink 1s steps(1) infinite; }
-.field.f .caret { visibility: hidden; }
-.field.editing .caret { visibility: visible; }
-.field.editing .field-box { border-color: var(--accent); }
-.field.focused .field-box { border-color: var(--text); }
-@keyframes blink { 50% { opacity: 0; } }
+.field-label { display: flex; align-items: baseline; font-size: 24px; color: var(--muted); margin-bottom: 10px; }
+.field-tip { margin-left: auto; font-size: 20px; color: var(--muted); visibility: hidden; }
+.field.focused .field-tip { visibility: visible; }
+.field.native .field-tip { visibility: hidden; }
+.field-box { display: flex; align-items: center; height: 84px; padding: 0 26px; border-radius: 16px; border: 3px solid var(--line); background: var(--surface); font-size: 34px; overflow: hidden; white-space: nowrap; transition: border-color 0.12s ease, box-shadow 0.12s ease; }
+.field-input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; caret-color: var(--accent); }
+.field-input::placeholder { color: #5d6478; }
+/* The field the on-screen keyboard types into. */
+.field.editing .field-box { border-color: rgba(245, 184, 74, 0.55); }
+/* The D-pad is on the field. */
+.field.focused .field-box { border-color: var(--text); box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.16); }
+/* A native keyboard (TV, phone, physical) is typing into it. */
+.field.native .field-box { border-color: var(--accent); box-shadow: 0 0 0 6px rgba(245, 184, 74, 0.3); background: var(--bg-2); }
 
 .osk { margin-top: 18px; }
-.osk-row { display: flex; margin-bottom: 12px; }
-.key { display: flex; align-items: center; justify-content: center; width: 96px; height: 76px; margin-right: 12px; border-radius: 12px; background: var(--surface); font-size: 32px; transition: transform 0.1s ease; }
-.key.wide { width: 130px; font-size: 25px; }
+.osk-row { display: flex; margin-bottom: 10px; }
+.key { display: flex; align-items: center; justify-content: center; width: 64px; height: 72px; margin-right: 8px; border-radius: 12px; background: var(--surface); font-size: 32px; transition: transform 0.1s ease; }
+.key.wide { width: 120px; font-size: 25px; }
 .key.space { width: 230px; font-size: 25px; }
 .key.done { width: 220px; font-size: 26px; font-weight: 700; background: rgba(245, 184, 74, 0.18); color: var(--accent); }
 .key.focused { background: var(--text); color: var(--bg); transform: scale(1.08); }

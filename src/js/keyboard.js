@@ -4,36 +4,67 @@
   const C = window.C;
   const h = C.h;
 
+  // QWERTY and ЙЦУКЕН, like a computer keyboard; capitals come from the lower-case rows.
+  const abc = ['1234567890', 'qwertyuiop', 'asdfghjkl@', 'zxcvbnm.-_'];
+  const ru = ['1234567890', 'йцукенгшщзхъ', 'фывапролджэ', 'ячсмитьбю.ё'];
+  const upper = (rows) => rows.map((r) => r.toUpperCase());
   const LAYOUTS = {
-    abc: ['abcdefgh', 'ijklmnop', 'qrstuvwx', 'yz123456', '7890.-_@'],
-    ABC: ['ABCDEFGH', 'IJKLMNOP', 'QRSTUVWX', 'YZ123456', '7890.-_@'],
-    sym: ['!?,:;/\\\'', '"()[]{}&', '%#+=*~$^', '<>|`12345', '67890.-_'],
-    ru: ['абвгдеёж', 'зийклмно', 'прстуфхц', 'чшщъыьэю', 'я.,-1234'],
-    RU: ['АБВГДЕЁЖ', 'ЗИЙКЛМНО', 'ПРСТУФХЦ', 'ЧШЩЪЫЬЭЮ', 'Я.,-1234'],
+    abc: abc,
+    ABC: upper(abc),
+    ru: ru,
+    RU: upper(ru),
+    sym: ['!?,:;/\'"()', '[]{}&%#+=*~$', '^<>|`.-_@'],
   };
 
-  /// A text field shown above the keyboard: { el, value, set(v) }. `secret` masks the text.
+  /// A text field: a real <input>, so the TV's own keyboard and the SmartThings phone keyboard can type into it
+  /// once OK is pressed on it, while the on-screen keyboard below edits it too. Returns { el, input, value, set(v) }.
+  /// opts: { secret, placeholder, number, onchange(v), onsubmit() (Enter/Done from a native keyboard) }
   C.textField = function (label, value, opts) {
     opts = opts || {};
-    const text = h('span.field-text');
-    const el = h('div.field' + (opts.focusable ? '.f' : ''), h('div.field-label', label), h('div.field-box', text, h('span.caret')));
+    const input = h('input.field-input', {
+      type: opts.secret ? 'password' : 'text',
+      placeholder: opts.placeholder || '',
+      autocomplete: 'off',
+      autocapitalize: 'none',
+      autocorrect: 'off',
+      spellcheck: 'false',
+      inputmode: opts.number ? 'numeric' : null,
+    });
+    input.value = value || '';
+    const el = h('div.field.f',
+      h('div.field-label', label, h('span.field-tip', 'OK to type with the TV or phone keyboard')),
+      h('div.field-box', input));
     const field = {
       el: el,
-      value: value || '',
+      input: input,
+      value: input.value,
       secret: !!opts.secret,
-      placeholder: opts.placeholder || '',
       set(v) {
         field.value = v;
-        render();
+        if (input.value !== v) input.value = v;
         if (opts.onchange) opts.onchange(v);
       },
+      /// Hands the field to the native keyboard (Tizen IME, SmartThings, a physical keyboard).
+      edit() {
+        if (C.focus.current() !== el) C.focus.set(el, { noReveal: true });
+        input.focus();
+        try {
+          input.setSelectionRange(input.value.length, input.value.length);
+        } catch (e) {
+          // Password inputs may refuse a selection.
+        }
+      },
     };
-    function render() {
-      const shown = field.secret ? field.value.replace(/./g, '•') : field.value;
-      text.textContent = shown || field.placeholder;
-      text.classList.toggle('placeholder', !shown);
-    }
-    render();
+    input._submit = opts.onsubmit || null;
+    input.addEventListener('input', () => {
+      field.value = input.value;
+      if (opts.onchange) opts.onchange(field.value);
+    });
+    input.addEventListener('focus', () => el.classList.add('native'));
+    input.addEventListener('blur', () => el.classList.remove('native'));
+    el.addEventListener('click', (e) => {
+      if (e.target !== input) field.edit();
+    });
     return field;
   };
 
