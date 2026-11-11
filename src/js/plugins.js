@@ -68,8 +68,13 @@
     C.app.push(C.screens.plugin(pluginId, nav.page, nav.params || {}));
   }
 
+  function play(ctx, p, channels) {
+    C.live.open({ pluginId: ctx.pluginId, stream: p.stream, title: p.title, image: p.image, channels: channels });
+  }
+
   async function perform(action, ctx, extra) {
     if (action.confirm && !(await C.ui.confirm(action.confirm, 'Continue'))) return;
+    if (action.play) return play(ctx, Object.assign({ title: action.label }, action.play));
     if (action.navigate) return navigate(ctx.pluginId, action.navigate);
     if (!action.call) return;
     try {
@@ -136,27 +141,42 @@
     }
   }
 
+  function itemImage(it) {
+    if (!it.image) return null;
+    if (it.image.indexOf('/api/') === 0) return C.url(it.image.slice(4));
+    return it.image.charAt(0) === '/' ? C.img(it.image, 'w185') : it.image;
+  }
+
   function renderList(b, ctx) {
     const items = b.items || [];
     if (!items.length) return h('div.empty.small', h('p', b.empty || 'Nothing here.'));
+    const channels = items.filter((it) => it.play && it.play.stream)
+      .map((it) => ({ stream: it.play.stream, title: it.play.title || it.title, image: itemImage(it) }));
     return h('div.plugin-list', { 'data-nav': 'column' }, items.map((it) => {
       const acts = it.actions || [];
-      const clickable = it.link || acts.length;
-      const image = it.image ? (it.image.charAt(0) === '/' && it.image.indexOf('/api/') !== 0 ? C.img(it.image, 'w185') : it.image) : null;
-      const row = h('div.plugin-item' + (clickable ? '.f' : ''),
-        image ? h('div.plugin-item-img', C.ui.image(image)) : null,
+      const playable = !!(it.play && it.play.stream);
+      const clickable = playable || it.link || acts.length;
+      const image = itemImage(it);
+      const watch = () => play(ctx, { stream: it.play.stream, title: it.play.title || it.title, image: image }, channels);
+      const menu = () => C.ui.menu(it.title, (playable ? [{ label: 'Play', onSelect: watch }] : [])
+        .concat(it.link ? [{ label: 'Open', onSelect: () => navigate(ctx.pluginId, it.link) }] : [])
+        .concat(acts.map((a) => ({ label: a.label, onSelect: () => perform(a, ctx) }))));
+      const row = h('div.plugin-item' + (clickable ? '.f' : '') + (playable ? '.playable' : ''),
+        playable ? h('div.plugin-item-img.logo', C.icon('tv'), image ? C.ui.image(image) : null) : image ? h('div.plugin-item-img', C.ui.image(image)) : null,
         h('div.plugin-item-body',
           h('div.plugin-item-title', it.title),
           it.subtitle ? h('div.plugin-item-sub', it.subtitle) : null,
           typeof it.progress === 'number' ? h('div.resume-bar', h('div', { style: { width: Math.max(0, Math.min(1, it.progress)) * 100 + '%' } })) : null,
           it.badges && it.badges.length ? h('div.badges', it.badges.map((x) => h('span.tag' + (TONES[x.tone] ? '.' + x.tone : ''), x.text))) : null),
-        acts.length ? h('div.plugin-item-more', acts.length === 1 && !it.link ? acts[0].label : '•••') : null);
-      if (clickable) {
+        playable && (acts.length || it.link) ? h('div.plugin-item-more', '•••') : acts.length ? h('div.plugin-item-more', acts.length === 1 && !it.link ? acts[0].label : '•••') : null);
+      if (playable) {
+        row.addEventListener('click', watch);
+        if (acts.length || it.link) row._more = menu;
+      } else if (clickable) {
         row.addEventListener('click', () => {
           if (!acts.length) return navigate(ctx.pluginId, it.link);
           if (acts.length === 1 && !it.link) return perform(acts[0], ctx);
-          C.ui.menu(it.title, (it.link ? [{ label: 'Open', onSelect: () => navigate(ctx.pluginId, it.link) }] : [])
-            .concat(acts.map((a) => ({ label: a.label, onSelect: () => perform(a, ctx) }))));
+          menu();
         });
       }
       return row;
@@ -226,6 +246,13 @@
       el: h('div.screen' + (rail ? '.with-rail' : '.plain'), rail, h('div.content', { 'data-nav': 'group' }, host)),
       body: host,
       destroy: () => clearTimeout(timer),
+      // OK plays a playable item; → opens its actions.
+      onKey: (e, code) => {
+        const cur = C.focus.current();
+        if (code !== C.KEYS.RIGHT || !cur || !cur._more || !host.contains(cur)) return false;
+        cur._more();
+        return true;
+      },
       onShow: () => (loader ? C.app.run(screen) : null),
       async load() {
         draw(initialView || (await loader.load()));

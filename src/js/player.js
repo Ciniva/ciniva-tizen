@@ -974,6 +974,7 @@
     return screen;
   }
 
+  C.player.engine = (host, ev) => (C.hasAvplay() ? avplayEngine : videoEngine)(host, ev);
   C.player.canDirect = canDirect;
   C.player.transcodeRequest = transcodeRequest;
   C.player.parseVtt = parseVtt;

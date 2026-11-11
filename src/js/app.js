@@ -4,7 +4,7 @@
   const C = window.C;
   const h = C.h;
 
-  C.VERSION = '0.1.0';
+  C.VERSION = '0.2.0';
 
   const stack = [];
   const host = () => document.getElementById('screens');
@@ -105,12 +105,11 @@
         if (s.onBack) s.onBack();
         return;
       }
+      // Unhide first: focus only returns to the remembered item if it's visible.
+      stack[stack.length - 2].el.classList.remove('hidden');
       unmount(s);
       const t = top();
-      if (t) {
-        t.el.classList.remove('hidden');
-        if (t.onShow) t.onShow();
-      }
+      if (t && t.onShow) t.onShow();
     },
 
     /// Swap `old` for `screen` without showing what's underneath (next episode).
@@ -158,6 +157,7 @@
     const names = {
       MediaPlayPause: 'PLAY_PAUSE', MediaPlay: 'PLAY', MediaPause: 'PAUSE', MediaStop: 'STOP',
       MediaFastForward: 'FF', MediaRewind: 'RW', MediaTrackNext: 'NEXT', MediaTrackPrevious: 'PREV',
+      ChannelUp: 'CH_UP', ChannelDown: 'CH_DOWN',
       ColorF0Red: 'RED', ColorF1Green: 'GREEN', ColorF2Yellow: 'YELLOW', ColorF3Blue: 'BLUE',
     };
     const digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];

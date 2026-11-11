@@ -11,6 +11,7 @@
   - Dolby Vision is always stripped, because Tizen 5.5 freezes on HEVC in fMP4 and stalls on DV metadata.
 - **Player features:** a resume prompt and progress reports, and ← → seeking that speeds up while held, with trickplay thumbnails. Audio, subtitle (text formats, drawn by the app) and quality menus; previous and next episode; skip credits and up next.
 - **Plugins:** plugin pages appear in the rail, plugin actions (e.g. *Find downloads*) on movie, show and season pages, and plugin settings under Settings for administrators. Server notifications show as toasts.
+- **Live TV:** channels a plugin lists play live through Ciniva (HLS in MPEG-TS, H.264/HEVC copied when possible) with the channel logo, a LIVE badge and no seek bar. CH+/CH− or ↑ ↓ change channel within the list, OK pauses, Back leaves; a dropped stream reconnects on its own and a dead channel offers a retry.
 - **Settings:** default quality, subtitle size, skip step, remembered languages, library scan (administrators), sign out, and the app version, which checks GitHub for a newer release.
 
 ## Install
@@ -20,10 +21,10 @@ Releases contain an **unsigned** `Ciniva-<version>-tizen.wgt`. Sign it with your
 The Tizen CLI doesn't re-sign a finished `.wgt`, so unpack it and package the directory:
 
 ```sh
-mkdir ciniva && cd ciniva && unzip ../Ciniva-0.1.0-tizen.wgt && cd ..
+mkdir ciniva && cd ciniva && unzip ../Ciniva-0.2.0-tizen.wgt && cd ..
 tizen package -t wgt -s <certificate profile> -- ciniva
 sdb connect <tv ip>
-tizen install -n Ciniva-0.1.0-tizen.wgt -t <tv name from sdb devices>
+tizen install -n Ciniva-0.2.0-tizen.wgt -t <tv name from sdb devices>
 ```
 
 Use the same certificate for every version; the TV refuses to upgrade an app signed with a different one. The app can't update itself, because installing packages needs a platform privilege. It does show in Settings when a newer release exists.
@@ -43,7 +44,7 @@ Code map (`src/js`, classic scripts on one `window.C` namespace, in load order):
 | `keyboard.js`, `ui.js` | on-screen keyboard; rail, hero, cards, rows, menus, dialogs |
 | `episodes.js`, `plugins.js` | episode order; plugin views, actions and settings, server events |
 | `screens.js`, `details.js`, `login.js` | home, grids, search, settings; movie and show pages; sign-in |
-| `player.js`, `app.js` | AVPlay / `<video>` player; screen stack, keys, update check, startup |
+| `player.js`, `live.js`, `app.js` | AVPlay / `<video>` player; live channel player; screen stack, keys, update check, startup |
 
 ## Remote
 
@@ -51,6 +52,7 @@ Code map (`src/js`, classic scripts on one `window.C` namespace, in load order):
 - **Player, controls hidden:** ← → skip (10 s by default, faster while held), OK pauses and shows the controls, ↑ ↓ show the controls, Back leaves.
 - **Player, controls shown:** arrows move, Back hides them.
 - **Media keys:** play, pause, stop, fast-forward (30 s), rewind, and previous/next track for previous/next episode.
+- **Live TV:** OK plays a channel (→ opens its other actions); in the player CH+/↑ next channel, CH−/↓ previous, OK or play/pause pauses, Back leaves.
 
 ## Releases
 
