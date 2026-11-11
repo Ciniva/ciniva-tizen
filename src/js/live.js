@@ -118,7 +118,7 @@
       }
       if (mine !== generation || closed) return;
       if (r.title) titleEl.textContent = r.title;
-      if (r.image && !current.image) logo.set(r.image);
+      if (r.image && !current.image) logo.set(r.image.indexOf('/api/') === 0 ? C.url(r.image.slice(4)) : r.image);
       try {
         await engine.open(C.url(r.playlist.replace(/^\/api/, '')), 0);
       } catch (e) {

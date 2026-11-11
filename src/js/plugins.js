@@ -143,7 +143,8 @@
 
   function itemImage(it) {
     if (!it.image) return null;
-    return it.image.charAt(0) === '/' && it.image.indexOf('/api/') !== 0 ? C.img(it.image, 'w185') : it.image;
+    if (it.image.indexOf('/api/') === 0) return C.url(it.image.slice(4));
+    return it.image.charAt(0) === '/' ? C.img(it.image, 'w185') : it.image;
   }
 
   function renderList(b, ctx) {
