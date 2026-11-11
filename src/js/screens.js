@@ -208,9 +208,11 @@
         const all = await Promise.all([C.api('/status').catch(() => null), C.api('/me').catch(() => ({})), C.plugins.list(true),
           Promise.race([C.updates.latest(), C.sleep(2000).then(() => null)])]);
         const update = all[3];
-        const appVersion = C.VERSION + (update && update.version
-          ? C.updates.newer(update.version, C.VERSION) ? ' · ' + update.version + ' available' : ' · up to date'
+        const pkg = C.packageVersion();
+        const appVersion = pkg + (update && update.version
+          ? C.updates.newer(update.version, pkg) ? ' · ' + update.version + ' available' : ' · up to date'
           : '');
+        const uiFrom = { bundled: 'in the app', server: 'from the server', kept: 'from the server (saved copy)' }[C.uiSource()];
         const status = all[0];
         const me = all[1].user || null;
         const plugins = me && me.admin ? all[2].filter((p) => p.has_settings) : [];
@@ -250,6 +252,7 @@
           }),
           h('h2.section', 'About'),
           item('Ciniva for Samsung TV', appVersion, null),
+          item('Interface', C.VERSION + ' · ' + uiFrom, null),
           status ? item('Ciniva server', status.version, null) : null);
         const rows = list.querySelectorAll('.f');
         return rows[Math.min(was, rows.length - 1)] || rows[0];

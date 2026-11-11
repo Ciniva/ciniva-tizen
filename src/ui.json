@@ -1,0 +1,20 @@
+{
+  "version": "0.3.0",
+  "shell": 1,
+  "css": ["css/app.css"],
+  "js": [
+    "js/util.js",
+    "js/api.js",
+    "js/focus.js",
+    "js/keyboard.js",
+    "js/ui.js",
+    "js/episodes.js",
+    "js/plugins.js",
+    "js/screens.js",
+    "js/details.js",
+    "js/login.js",
+    "js/player.js",
+    "js/live.js",
+    "js/app.js"
+  ]
+}

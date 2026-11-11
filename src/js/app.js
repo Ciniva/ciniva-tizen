@@ -4,7 +4,7 @@
   const C = window.C;
   const h = C.h;
 
-  C.VERSION = '0.2.2';
+  C.VERSION = '0.3.0';
 
   const stack = [];
   const host = () => document.getElementById('screens');
@@ -194,6 +194,15 @@
     return false;
   }
 
+  /// The installed package's version (the UI may be newer, from the server).
+  C.packageVersion = function () {
+    return (window.CinivaShell && window.CinivaShell.bundled) || C.VERSION;
+  };
+  /// Where the running UI came from, for Settings: 'bundled', 'server' or 'kept' (the server's, kept on the TV).
+  C.uiSource = function () {
+    return (window.CinivaShell && window.CinivaShell.ui && window.CinivaShell.ui.source) || 'bundled';
+  };
+
   C.updates = {
     newer: newer,
     /// Latest release { version, url }, cached for 6 hours; null when unknown.
@@ -216,18 +225,20 @@
         return cached;
       }
     },
-    /// One notice per new version.
+    /// One notice per new version. Not while the server supplies the UI: it updates the TV itself.
     async notify() {
+      if (C.uiSource() !== 'bundled') return;
       const v = await C.updates.latest();
-      if (!v || !v.version || !newer(v.version, C.VERSION) || C.pref('updateNoticed', '') === v.version) return;
+      if (!v || !v.version || !newer(v.version, C.packageVersion()) || C.pref('updateNoticed', '') === v.version) return;
       C.setPref('updateNoticed', v.version);
-      C.toast('Ciniva for Samsung TV ' + v.version + ' is available (this TV has ' + C.VERSION + ').');
+      C.toast('Ciniva for Samsung TV ' + v.version + ' is available (this TV has ' + C.packageVersion() + ').');
     },
   };
 
   // ---- Startup --------------------------------------------------------------------------------------------------
 
   async function boot() {
+    if (window.CinivaShell) window.CinivaShell.started();
     registerKeys();
     if (!C.session.server || !C.session.token) {
       C.app.signIn();
@@ -267,11 +278,15 @@
 
   C.app.boot = boot;
   C.app.afterSignIn = async function () {
+    // A newer UI on the server takes over now rather than at the next launch.
+    if (window.CinivaShell && (await window.CinivaShell.refresh())) return;
     await C.plugins.list(true);
     C.plugins.listen();
     C.app.root('home');
     setTimeout(() => C.updates.notify(), 5000);
   };
 
-  document.addEventListener('DOMContentLoaded', boot);
+  // The shell may add this script after the page has loaded.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
 })();
