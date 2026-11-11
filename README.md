@@ -33,13 +33,39 @@ tizen install -n "$(basename ciniva/*.wgt)" -t <tv name from sdb devices> -- cin
 
 The TV refuses to upgrade an app signed with a different certificate, so a TV with a self-signed build needs it uninstalled before installing a release. The app can't update itself, because installing packages needs a platform privilege. It does show in Settings when a newer release exists.
 
+## Updates from the server
+
+The installed app is a shell around the interface. When the Ciniva server runs the `tv-ui` plugin and it has a newer interface than the app, the TV runs the server's, so an update reaches every TV through a new plugin image, with no reinstall:
+
+- **Signed in:** at every start the app asks the plugin for `ui.json`. A newer version is downloaded, saved on the TV, and started.
+- **Server down:** the TV starts the last server interface that worked.
+- **First start, sign-in, or no plugin:** the TV uses the interface built into the app.
+- **Broken interface:** an interface that never finishes starting is skipped at the next start, and the TV goes back to the last good one.
+- **Compatibility:** `ui.json` names the oldest shell it runs on (`shell`, `SHELL` in `src/boot.js`). Change it only when the interface needs something new from the installed app, such as a new privilege. TVs on an older shell keep their current interface until the app is reinstalled.
+
+Settings → About shows the app's version and where the interface came from.
+
+The plugin is `ghcr.io/ciniva/ciniva-tizen-ui`. It's built from this repository (`plugin/` and `src/`), and a `v<VERSION>` tag publishes it. Run it next to Ciniva like the other plugins:
+
+```yaml
+  ciniva-tv-ui:
+    image: ghcr.io/ciniva/ciniva-tizen-ui:latest
+    environment:
+      CINIVA_URL: http://ciniva:8484
+      CINIVA_PLUGIN_SECRET_FILE: /run/secrets/ciniva_plugin_secret
+      PLUGIN_URL: http://ciniva-tv-ui:8092
+    secrets: [ciniva_plugin_secret]
+    read_only: true
+    restart: unless-stopped
+```
+
 ## Develop
 
 Open `src/index.html` from any local web server in a desktop Chromium at 1920×1080. Arrow keys, Enter and Esc/Backspace stand in for the remote. AVPlay isn't there, so the player falls back to `<video>`, which plays direct MP4/H.264 but no HLS.
 
 `sh scripts/check.sh` checks what the TV can run: ES2017 syntax (acorn), no DOM API or CSS newer than Chromium 69, and the same version in `VERSION`, `src/config.xml` and `src/js/app.js`.
 
-Code map (`src/js`, classic scripts on one `window.C` namespace, in load order):
+Code map (`src/js`, the interface: classic scripts on one `window.C` namespace, in load order):
 
 | File | Contents |
 |---|---|
@@ -49,6 +75,8 @@ Code map (`src/js`, classic scripts on one `window.C` namespace, in load order):
 | `episodes.js`, `plugins.js` | episode order; plugin views, actions and settings, server events |
 | `screens.js`, `details.js`, `login.js` | home, grids, search, settings; movie and show pages; sign-in |
 | `player.js`, `live.js`, `app.js` | AVPlay / `<video>` player; live channel player; screen stack, keys, update check, startup |
+
+Outside `src/js`: `src/boot.js` is the shell that picks and starts the interface. `src/ui.json` lists the interface's files in load order; `scripts/check.sh` keeps it complete. `plugin/` is the `tv-ui` plugin that serves the interface.
 
 ## Remote
 
@@ -60,4 +88,4 @@ Code map (`src/js`, classic scripts on one `window.C` namespace, in load order):
 
 ## Releases
 
-Pull requests and manual runs of the App workflow build an unsigned `.wgt` as a workflow artifact. Pushing a tag `v<VERSION>` (matching `VERSION`, on `main`) runs the Release workflow. It waits for approval in the `release` environment, which holds the signing secrets, then signs the app and publishes release `v<VERSION>` with the signed `.wgt` and its SHA-256.
+Pull requests and manual runs of the App workflow build an unsigned `.wgt` as a workflow artifact. The Plugin workflow tests the `tv-ui` plugin on pull requests, and publishes its image on tags (`<VERSION>` and `latest`) and on manual runs (a commit tag). Pushing a tag `v<VERSION>` (matching `VERSION`, on `main`) runs the Release workflow. It waits for approval in the `release` environment, which holds the signing secrets, then signs the app and publishes release `v<VERSION>` with the signed `.wgt` and its SHA-256.
