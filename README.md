@@ -41,6 +41,13 @@ The installed app is a shell around the interface. When the Ciniva server runs t
 - **Server down:** the TV starts the last server interface that worked.
 - **First start, sign-in, or no plugin:** the TV uses the interface built into the app.
 - **Broken interface:** an interface that never finishes starting is skipped at the next start, and the TV goes back to the last good one.
+- **Signed only:** the app runs a server interface only when it is signed by the Ciniva interface key. The Plugin
+  workflow signs `ui.json`'s files (`scripts/sign-ui.js`: a manifest of their SHA-512 hashes, Ed25519 signature) with the
+  `UI_SIGNING_KEY` secret of the `release` environment, and the plugin serves that signature with `ui.json`. The app
+  checks it with the public key in `src/verify.js` (tweetnacl in `src/vendor`; Chromium 69 has no Ed25519), checks
+  every downloaded file against its hash, and checks a saved interface again before each start. Anything unsigned,
+  edited or signed by another key is ignored and the interface built into the app runs. A new key means a new app
+  release, since the public key is part of the app.
 - **Compatibility:** `ui.json` names the oldest shell it runs on (`shell`, `SHELL` in `src/boot.js`). Change it only when the interface needs something new from the installed app, such as a new privilege. TVs on an older shell keep their current interface until the app is reinstalled.
 
 Settings → About shows the app's version and where the interface came from.
@@ -76,7 +83,7 @@ Code map (`src/js`, the interface: classic scripts on one `window.C` namespace, 
 | `screens.js`, `details.js`, `login.js` | home, grids, search, settings; movie and show pages; sign-in |
 | `player.js`, `live.js`, `app.js` | AVPlay / `<video>` player; live channel player; screen stack, keys, update check, startup |
 
-Outside `src/js`: `src/boot.js` is the shell that picks and starts the interface. `src/ui.json` lists the interface's files in load order; `scripts/check.sh` keeps it complete. `plugin/` is the `tv-ui` plugin that serves the interface.
+Outside `src/js`: `src/boot.js` is the shell that picks and starts the interface, and `src/verify.js` checks the signature of a server interface before it runs. `src/ui.json` lists the interface's files in load order; `scripts/check.sh` keeps it complete. `plugin/` is the `tv-ui` plugin that serves the interface.
 
 ## Remote
 

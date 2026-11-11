@@ -8,6 +8,8 @@
 // - A server UI declares the oldest shell it works with (`shell` in ui.json). A newer requirement keeps the bundled UI
 //   until this package is updated.
 // - A server UI that never finishes starting is skipped on the next launch (C.app calls CinivaShell.started()).
+// - Only interfaces signed by the Ciniva release key run (verify.js): the server's manifest must carry a valid signature
+//   and every file must match its signed hash, checked on download and again before each start of a kept copy.
 (function () {
   'use strict';
 
@@ -74,22 +76,31 @@
     const server = read('server');
     const token = read('token');
     if (!server || !token) return null;
-    const m = parse(await get(server + PLUGIN + 'ui.json', token, 4000));
-    if (!m || !m.version) return null;
-    m.build = m.build || '';
+    const answer = parse(await get(server + PLUGIN + 'ui.json', token, 4000));
+    // Unsigned or not signed by our key: the server's interface never runs.
+    const m = answer && window.CinivaVerify.manifest(answer.signed);
+    if (!m) return null;
     if (!newer(m.version, bundled.version)) return BUNDLED;
-    if (!usable(m)) return null;
+    const info = { version: m.version, shell: m.shell, build: answer.build || '' };
+    if (!usable(info)) return null;
     // `build` fingerprints the files, so a different build under the same version is downloaded again.
-    const same = (ui) => !!ui && ui.version === m.version && ui.build === m.build;
+    const same = (ui) => !!ui && ui.version === info.version && ui.build === info.build;
     if (same(kept)) return kept;
     const next = parse(read('uiNext'));
     if (same(next)) return next;
-    const files = m.css.concat(m.js);
-    const texts = await Promise.all(files.map((f) => get(server + PLUGIN + f, token, 20000)));
-    const ui = { version: m.version, build: m.build, shell: m.shell, css: [], js: [] };
-    files.forEach((f, i) => (i < m.css.length ? ui.css : ui.js).push([f, texts[i]]));
+    const names = m.css.concat(m.js).map((f) => f[0]);
+    const texts = await Promise.all(names.map((f) => get(server + PLUGIN + f, token, 20000)));
+    const files = names.map((f, i) => [f, texts[i]]);
+    if (!window.CinivaVerify.files(m, files)) throw new Error('files differ from the signed manifest');
+    const ui = { version: info.version, build: info.build, shell: info.shell, signed: answer.signed, css: files.slice(0, m.css.length), js: files.slice(m.css.length) };
     write('uiNext', JSON.stringify(ui));
     return ui;
+  }
+
+  /// A stored or downloaded interface is still exactly what the release key signed.
+  function trusted(ui) {
+    const m = window.CinivaVerify.manifest(ui.signed);
+    return !!m && m.version === ui.version && m.shell === ui.shell && window.CinivaVerify.files(m, ui.css.concat(ui.js));
   }
 
   function start(ui, source, bundled) {
@@ -118,7 +129,10 @@
       const next = parse(read('uiNext'));
       if (next && id(next) === pending) write('uiNext', null);
     }
-    if (kept && !usable(kept)) kept = null;
+    if (kept && !(usable(kept) && trusted(kept))) {
+      write('ui', null);
+      kept = null;
+    }
     let ui = null;
     let source = 'server';
     if (bundled) {
@@ -137,6 +151,10 @@
         ui = kept;
         source = 'kept';
       }
+    }
+    if (ui && !trusted(ui)) {
+      write('uiNext', null);
+      ui = null;
     }
     if (ui) start(ui, source, bundled);
     else start(bundled || FALLBACK, 'bundled', bundled || FALLBACK);

@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && useradd --uid ${UID} --gid ${GID} --no-create-home --shell /usr/sbin/nologin plugin \
  && { find / -xdev -perm /6000 -type f -exec chmod a-s {} + 2>/dev/null || true; }
 COPY --from=build /src/target/release/ciniva-tv-ui /usr/local/bin/ciniva-tv-ui
-COPY src/ui.json /ui/ui.json
+# ui.signed.json exists only when CI signed the interface; without it TVs ignore this one.
+COPY src/ui.json src/ui.signed.jso[n] /ui/
 COPY src/css /ui/css
 COPY src/js /ui/js
 USER plugin:plugin
