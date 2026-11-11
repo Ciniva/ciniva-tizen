@@ -24,7 +24,7 @@ The Tizen CLI doesn't re-sign a finished `.wgt`, so unpack it and package the di
 mkdir ciniva && cd ciniva && unzip ../Ciniva-0.2.0-tizen.wgt && cd ..
 tizen package -t wgt -s <certificate profile> -- ciniva
 sdb connect <tv ip>
-tizen install -n Ciniva-0.2.0-tizen.wgt -t <tv name from sdb devices>
+tizen install -n "$(basename ciniva/*.wgt)" -t <tv name from sdb devices> -- ciniva   # the signed package tizen package wrote into ciniva/
 ```
 
 Use the same certificate for every version; the TV refuses to upgrade an app signed with a different one. The app can't update itself, because installing packages needs a platform privilege. It does show in Settings when a newer release exists.

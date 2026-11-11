@@ -9,7 +9,7 @@
   const REQUEST = {
     max_height: 1080,
     video_copy: 'h264,hevc',
-    audio_copy: 'aac,ac3,eac3',
+    audio_copy: 'aac,ac3',
     audio_channels: 2,
     container: 'ts',
   };
