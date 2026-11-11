@@ -61,7 +61,9 @@
     }
   }
 
-  const usable = (ui) => !!ui && ui.shell <= SHELL && read('uiBad') !== ui.version;
+  /// One build of the UI: its version and the plugin's fingerprint of its files.
+  const id = (ui) => ui.version + '+' + (ui.build || '');
+  const usable = (ui) => !!ui && ui.shell <= SHELL && read('uiBad') !== id(ui);
 
   /// The server's UI when it's newer than `bundled` and runs on this shell; downloads it unless already here.
   async function fromServer(bundled, kept) {
@@ -69,20 +71,24 @@
     const token = read('token');
     if (!server || !token) return null;
     const m = parse(await get(server + PLUGIN + 'ui.json', token, 4000));
-    if (!m || !m.version || !newer(m.version, bundled.version) || !usable(m)) return null;
-    if (kept && kept.version === m.version) return kept;
+    if (!m || !m.version) return null;
+    m.build = m.build || '';
+    if (!newer(m.version, bundled.version) || !usable(m)) return null;
+    // `build` fingerprints the files, so a different build under the same version is downloaded again.
+    const same = (ui) => !!ui && ui.version === m.version && ui.build === m.build;
+    if (same(kept)) return kept;
     const next = parse(read('uiNext'));
-    if (next && next.version === m.version) return next;
+    if (same(next)) return next;
     const files = m.css.concat(m.js);
     const texts = await Promise.all(files.map((f) => get(server + PLUGIN + f, token, 20000)));
-    const ui = { version: m.version, shell: m.shell, css: [], js: [] };
+    const ui = { version: m.version, build: m.build, shell: m.shell, css: [], js: [] };
     files.forEach((f, i) => (i < m.css.length ? ui.css : ui.js).push([f, texts[i]]));
     write('uiNext', JSON.stringify(ui));
     return ui;
   }
 
   function start(ui, source, bundled) {
-    window.CinivaShell.ui = { version: ui.version, source: source };
+    window.CinivaShell.ui = { version: ui.version, build: ui.build || '', source: source };
     window.CinivaShell.bundled = bundled.version;
     const head = document.head;
     if (source === 'bundled') {
@@ -91,7 +97,7 @@
       ui.js.forEach((f) => head.appendChild(Object.assign(document.createElement('script'), { src: f, async: false })));
       return;
     }
-    write('uiPending', ui.version);
+    write('uiPending', id(ui));
     ui.css.forEach((f) => head.appendChild(Object.assign(document.createElement('style'), { textContent: f[1] })));
     ui.js.forEach((f) => head.appendChild(Object.assign(document.createElement('script'), { textContent: f[1] + '\n//# sourceURL=' + f[0] })));
   }
@@ -104,7 +110,8 @@
     if (pending) {
       write('uiBad', pending);
       write('uiPending', null);
-      if ((parse(read('uiNext')) || {}).version === pending) write('uiNext', null);
+      const next = parse(read('uiNext'));
+      if (next && id(next) === pending) write('uiNext', null);
     }
     if (kept && !usable(kept)) kept = null;
     let ui = null;
@@ -145,7 +152,8 @@
       const ui = window.CinivaShell.ui;
       if (!ui || ui.source === 'bundled') return;
       const next = read('uiNext');
-      if (next && (parse(next) || {}).version === ui.version) {
+      const parsed = next && parse(next);
+      if (parsed && parsed.version === ui.version && (parsed.build || '') === (ui.build || '')) {
         write('ui', next);
         write('uiNext', null);
       }

@@ -77,6 +77,24 @@ async fn require_ciniva(State(app): State<Shared>, req: Request, next: Next) -> 
     }
 }
 
+/// ui.json plus `build`: a fingerprint of every file it lists, so a TV can tell two builds with the same version apart.
+fn with_build(mut ui: Value, dir: &std::path::Path) -> anyhow::Result<Value> {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    for kind in ["css", "js"] {
+        for f in ui[kind].as_array().cloned().unwrap_or_default() {
+            let path = f.as_str().unwrap_or_default();
+            hash.update(path.as_bytes());
+            hash.update([0]);
+            hash.update(std::fs::read(dir.join(path)).map_err(|e| anyhow::anyhow!("{path}: {e}"))?);
+            hash.update([0]);
+        }
+    }
+    let digest: String = hash.finalize().iter().take(8).map(|b| format!("{b:02x}")).collect();
+    ui["build"] = Value::String(digest);
+    Ok(ui)
+}
+
 /// The files ui.json lists; nothing else in the image is served.
 fn listed(ui: &Value, path: &str) -> bool {
     ["css", "js"].iter().any(|k| ui[k].as_array().is_some_and(|files| files.iter().any(|f| f.as_str() == Some(path))))
@@ -130,8 +148,8 @@ async fn main() -> anyhow::Result<()> {
     if cfg.secret.is_empty() {
         anyhow::bail!("CINIVA_PLUGIN_SECRET is required");
     }
-    let ui: Value = serde_json::from_slice(&std::fs::read(cfg.ui_dir.join("ui.json"))?)?;
-    tracing::info!(version = ui["version"].as_str().unwrap_or("?"), "serving the TV interface");
+    let ui = with_build(serde_json::from_slice(&std::fs::read(cfg.ui_dir.join("ui.json"))?)?, &cfg.ui_dir)?;
+    tracing::info!(version = ui["version"].as_str().unwrap_or("?"), build = ui["build"].as_str().unwrap_or("?"), "serving the TV interface");
     let app: Shared = Arc::new(App { http: reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?, ui, cfg });
 
     let heartbeat = app.clone();
@@ -196,6 +214,18 @@ mod tests {
         let dir = ui_dir();
         assert_eq!(get(app(&dir), "/ui/tv/secret.txt", Some("s3cret")).await.0, StatusCode::NOT_FOUND);
         assert_eq!(get(app(&dir), "/ui/tv/../secret.txt", Some("s3cret")).await.0, StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn build_changes_with_content() {
+        let dir = ui_dir();
+        let ui = json!({ "version": "1.0.0", "shell": 1, "css": [], "js": ["js/app.js"] });
+        let a = with_build(ui.clone(), &dir).unwrap()["build"].clone();
+        assert_eq!(a.as_str().unwrap().len(), 16);
+        assert_eq!(with_build(ui.clone(), &dir).unwrap()["build"], a);
+        std::fs::write(dir.join("js/app.js"), "C.boot(); // changed").unwrap();
+        assert_ne!(with_build(ui.clone(), &dir).unwrap()["build"], a);
+        assert!(with_build(json!({ "css": [], "js": ["js/missing.js"] }), &dir).is_err());
     }
 
     #[tokio::test]
