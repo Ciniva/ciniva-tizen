@@ -1,0 +1,103 @@
+name: Release
+
+# A v<VERSION> tag on main publishes release v<VERSION> with the .wgt signed by the Ciniva author certificate,
+# ready to install on a TV in developer mode. A manual run from main signs a build as an artifact only.
+#
+# The job runs in the `release` environment. It holds the signing secrets and needs an approval before each run,
+# so neither a pull request nor a tag on another branch can reach the certificate. TVs refuse an upgrade signed
+# with a different certificate, so every version must use this one.
+#   TIZEN_AUTHOR_P12       base64 of the author .p12
+#   TIZEN_AUTHOR_PASSWORD  its password
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sign:
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: release
+    env:
+      CLI_URL: https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_ubuntu-64.bin
+      CLI_SHA256: 7f33fe09eda4eb5d50463cf997e8f676d455060720470070ae1932994413aaf4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Version and branch
+        run: |
+          v=$(tr -d ' \r\n' < VERSION)
+          if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+            [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME does not match VERSION $v"; exit 1; }
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "tag $GITHUB_REF_NAME is not on main"; exit 1; }
+          fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - name: Check (Tizen 5.5 runs Chromium 69)
+        run: sh scripts/check.sh
+
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Tizen CLI 6.1
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/cli.bin" "$CLI_URL"
+          echo "$CLI_SHA256  $RUNNER_TEMP/cli.bin" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/cli.bin"
+          "$RUNNER_TEMP/cli.bin" --accept-license "$HOME/tizen-studio"
+          rm "$RUNNER_TEMP/cli.bin"
+          echo "$HOME/tizen-studio/tools" >> "$GITHUB_PATH"
+          echo "$HOME/tizen-studio/tools/ide/bin" >> "$GITHUB_PATH"
+
+      - name: Signing profile
+        env:
+          P12_B64: ${{ secrets.TIZEN_AUTHOR_P12 }}
+          PW: ${{ secrets.TIZEN_AUTHOR_PASSWORD }}
+        run: |
+          [ -n "$P12_B64" ] && [ -n "$PW" ] || { echo "signing secrets missing"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/cert"
+          printf '%s' "$P12_B64" | base64 -d > "$RUNNER_TEMP/cert/author.p12"
+          prof="$HOME/tizen-studio-data/profile/profiles.xml"
+          tizen cli-config "profiles.path=$prof" > /dev/null
+          tizen security-profiles add -n ciniva -a "$RUNNER_TEMP/cert/author.p12" -p "$PW" > /dev/null
+          tizen security-profiles set-active -n ciniva > /dev/null
+          # The CLI stores the passwords as encrypted .pwd files it then can't read back ("Invaild password");
+          # put them in the profile as XML-escaped plain text instead (the default distributor's is public).
+          perl -pi -e 'BEGIN { ($p = $ENV{PW}) =~ s/&/&amp;/g; $p =~ s/"/&quot;/g; $p =~ s/</&lt;/g }
+            s#password="[^"]*author[^"]*\.pwd"#password="$p"#; s#password="[^"]*tizen-distributor-signer\.pwd"#password="tizenpkcs12passfordsigner"#' "$prof"
+
+      # `tizen build-web` is broken in 6.1 (NoClassDefFoundError), so the app is staged by copying.
+      - name: Package and sign
+        run: |
+          build="$RUNNER_TEMP/app/.buildResult"
+          mkdir -p "$build"
+          cp -r src/. "$build/"
+          tizen package -t wgt -s ciniva -- "$build"
+          wgt="Ciniva-$VERSION-tizen.wgt"
+          mv "$build"/*.wgt "$wgt"
+          rm -rf "$RUNNER_TEMP/cert" "$HOME/tizen-studio-data/profile"
+          [ "$(unzip -Z1 "$wgt" | grep -cE '^(author-signature|signature1)\.xml$')" = 2 ] || { echo "signature files missing"; exit 1; }
+          sha256sum "$wgt" | tee "$wgt.sha256"
+          echo "WGT=$wgt" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Ciniva-${{ env.VERSION }}-tizen-signed
+          path: |
+            ${{ env.WGT }}
+            ${{ env.WGT }}.sha256
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then echo "v$VERSION is already released."; exit 0; fi
+          gh release create "v$VERSION" "$WGT" "$WGT.sha256" --title "Ciniva for Samsung TV $VERSION" --generate-notes --target "$GITHUB_SHA"
