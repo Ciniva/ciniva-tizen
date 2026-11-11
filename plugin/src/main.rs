@@ -192,8 +192,9 @@ mod tests {
         (status, ctype, String::from_utf8_lossy(&body).into_owned())
     }
 
-    fn ui_dir() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("tv-ui-test-{}", std::process::id()));
+    /// A folder per test: tests run in parallel and one of them edits its files.
+    fn ui_dir(test: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("tv-ui-test-{}-{test}", std::process::id()));
         std::fs::create_dir_all(dir.join("js")).unwrap();
         std::fs::write(dir.join("js/app.js"), "C.boot();").unwrap();
         std::fs::write(dir.join("secret.txt"), "not served").unwrap();
@@ -202,7 +203,7 @@ mod tests {
 
     #[tokio::test]
     async fn serves_listed_files_to_ciniva_only() {
-        let dir = ui_dir();
+        let dir = ui_dir("serves_listed_files_to_ciniva_only");
         let (status, ctype, body) = get(app(&dir), "/ui/tv/js/app.js", Some("s3cret")).await;
         assert_eq!((status, ctype.as_str(), body.as_str()), (StatusCode::OK, "text/javascript; charset=utf-8", "C.boot();"));
         assert_eq!(get(app(&dir), "/ui/tv/js/app.js", None).await.0, StatusCode::FORBIDDEN);
@@ -211,14 +212,14 @@ mod tests {
 
     #[tokio::test]
     async fn refuses_files_ui_json_does_not_list() {
-        let dir = ui_dir();
+        let dir = ui_dir("refuses_files_ui_json_does_not_list");
         assert_eq!(get(app(&dir), "/ui/tv/secret.txt", Some("s3cret")).await.0, StatusCode::NOT_FOUND);
         assert_eq!(get(app(&dir), "/ui/tv/../secret.txt", Some("s3cret")).await.0, StatusCode::NOT_FOUND);
     }
 
     #[test]
     fn build_changes_with_content() {
-        let dir = ui_dir();
+        let dir = ui_dir("build_changes_with_content");
         let ui = json!({ "version": "1.0.0", "shell": 1, "css": [], "js": ["js/app.js"] });
         let a = with_build(ui.clone(), &dir).unwrap()["build"].clone();
         assert_eq!(a.as_str().unwrap().len(), 16);
@@ -230,7 +231,7 @@ mod tests {
 
     #[tokio::test]
     async fn answers_ui_json() {
-        let dir = ui_dir();
+        let dir = ui_dir("answers_ui_json");
         let (status, _, body) = get(app(&dir), "/ui/tv/ui.json", Some("s3cret")).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["version"], "9.9.9");
