@@ -21,7 +21,7 @@ Releases contain an **unsigned** `Ciniva-<version>-tizen.wgt`. Sign it with your
 The Tizen CLI doesn't re-sign a finished `.wgt`, so unpack it and package the directory:
 
 ```sh
-mkdir ciniva && cd ciniva && unzip ../Ciniva-0.2.0-tizen.wgt && cd ..
+mkdir ciniva && cd ciniva && unzip ../Ciniva-0.2.1-tizen.wgt && cd ..
 tizen package -t wgt -s <certificate profile> -- ciniva
 sdb connect <tv ip>
 tizen install -n "$(basename ciniva/*.wgt)" -t <tv name from sdb devices> -- ciniva   # the signed package tizen package wrote into ciniva/
