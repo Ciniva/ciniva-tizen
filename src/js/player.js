@@ -21,7 +21,8 @@
   const DIRECT_CONTAINERS = { mkv: 1, mp4: 1, m4v: 1, mov: 1, ts: 1, m2ts: 1, mts: 1 };
   // Samsung's 2020 TVs dropped DTS; TrueHD, FLAC and Opus aren't decoded in these containers either.
   const DIRECT_AUDIO = { aac: 1, ac3: 1, eac3: 1, mp3: 1 };
-  const COPY_AUDIO = 'aac,ac3,eac3,mp3';
+  // E-AC-3 copied into HLS MPEG-TS played silently on the UE55TU8300 (Nosferatu), so HLS re-encodes it to AAC.
+  const COPY_AUDIO = 'aac,ac3,mp3';
 
   function defaultAudio(probe) {
     return probe.audio.filter((a) => a.default)[0] || probe.audio[0] || null;
@@ -112,7 +113,17 @@
                 paused = false;
                 resolve();
               };
-              if (start > 1) av.seekTo(Math.floor(start * 1000), go, go);
+              // A direct-play start that can't seek must not quietly begin at 0; the caller falls back to HLS.
+              const missed = () => {
+                if (hints && hints.direct) reject(new Error('seek failed'));
+                else go();
+              };
+              // The position is checked once playing, since AVPlay may not report it before play().
+              const seeked = () => {
+                quiet(() => av.play());
+                this.landed(start).then((ok) => (ok ? go() : missed()));
+              };
+              if (start > 1) av.seekTo(Math.floor(start * 1000), seeked, missed);
               else go();
             }, (err) => reject(new Error(err && err.name ? err.name : String(err))));
           } catch (e) {
@@ -131,11 +142,21 @@
       seek(t) {
         return new Promise((resolve) => {
           try {
-            av.seekTo(Math.max(0, Math.floor(t * 1000)), () => resolve(true), () => resolve(false));
+            av.seekTo(Math.max(0, Math.floor(t * 1000)), () => this.landed(t).then(resolve), () => resolve(false));
           } catch (e) {
             resolve(false);
           }
         });
+      },
+      /// Some direct-play files report a successful seek and then restart from the beginning; check where we are.
+      async landed(t) {
+        if (t < 30) return true;
+        for (let i = 0; i < 6; i++) {
+          await C.sleep(500);
+          const now = (quiet(() => av.getCurrentTime()) || 0) / 1000;
+          if (Math.abs(now - t) < 20) return true;
+        }
+        return false;
       },
       time() {
         const ms = quiet(() => av.getCurrentTime());
@@ -408,7 +429,7 @@
       }
       showInfo();
       try {
-        await engine.open(url, position, { uhd: ((probe.video && probe.video.height) || 0) > 1080 });
+        await engine.open(url, position, { uhd: ((probe.video && probe.video.height) || 0) > 1080, direct: state.mode === 'direct' });
       } catch (e) {
         if (state.closed) return true;
         if (state.mode === 'direct') {
@@ -602,7 +623,11 @@
       lastGood = t;
       const ok = await engine.seek(t);
       root.classList.remove('loading');
-      if (!ok && !state.closed) load(t, true);
+      // A file AVPlay can't seek directly is streamed through Ciniva from the target instead (still original quality).
+      if (!ok && !state.closed) {
+        if (state.mode === 'direct') state.forceHls = true;
+        load(t, true);
+      }
       render(t);
       armHide();
       lastReport = 0;
