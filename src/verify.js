@@ -8,7 +8,7 @@
   'use strict';
 
   // Public half of the UI_SIGNING_KEY secret in the ciniva-tizen repository.
-  const PUBLIC_KEY = '__UI_PUBLIC_KEY__';
+  const PUBLIC_KEY = 'oiETBIHOraa9VBYTILjV1XIHbrZSpbmXuWvIhzxzfXU=';
 
   const utf8 = (text) => new TextEncoder().encode(text);
 
