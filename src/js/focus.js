@@ -13,7 +13,7 @@
   const C = window.C;
 
   const KEYS = {
-    LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 10009, ESC: 27, BACKSPACE: 8, EXIT: 10182,
+    LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 10009, ESC: 27, BACKSPACE: 8, EXIT: 10182, IME_DONE: 65376, IME_CANCEL: 65385,
     PLAY: 415, PAUSE: 19, PLAY_PAUSE: 10252, STOP: 413, FF: 417, RW: 412, NEXT: 10233, PREV: 10232,
     CH_UP: 427, CH_DOWN: 428, PAGE_UP: 33, PAGE_DOWN: 34,
     RED: 403, GREEN: 404, YELLOW: 405, BLUE: 406,
@@ -96,6 +96,9 @@
     if (!el) return;
     opts = opts || {};
     if (current !== el) blur();
+    // Focus leaving a field that a native keyboard is editing closes that keyboard.
+    const ae = document.activeElement;
+    if (ae && ae.tagName === 'INPUT' && !el.contains(ae)) ae.blur();
     current = el;
     el.classList.add('focused');
     const L = top();
@@ -280,6 +283,19 @@
   document.addEventListener('keydown', (e) => {
     const L = top();
     const code = e.keyCode;
+    // A native keyboard is typing into an <input>: leave its keys alone, except the ones that end editing.
+    const ae = document.activeElement;
+    if (ae && ae.tagName === 'INPUT') {
+      const done = code === KEYS.IME_DONE || code === KEYS.ENTER;
+      if (done || code === KEYS.IME_CANCEL || code === KEYS.BACK || code === KEYS.ESC || code === KEYS.UP || code === KEYS.DOWN) {
+        e.preventDefault();
+        ae.blur();
+        if (done && ae._submit) ae._submit();
+        else if (code === KEYS.UP) move('up');
+        else if (code === KEYS.DOWN) move('down');
+      }
+      return;
+    }
     if (L && L.onKey && L.onKey(e, code) === true) {
       e.preventDefault();
       return;

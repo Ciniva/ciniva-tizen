@@ -18,7 +18,7 @@
 
     function server(note) {
       const error = h('p.error', note || '');
-      const field = C.textField('Server address', C.session.server || C.pref('lastServer', 'http://'), { placeholder: 'http://192.168.1.10:8484' });
+      const field = C.textField('Server address', C.session.server || C.pref('lastServer', 'http://'), { placeholder: 'http://192.168.1.10:8484', onsubmit: () => connect() });
       const kb = C.keyboard(() => field, { url: true, done: 'Connect', onDone: connect });
       screen.layer.onKey = (e, code) => kb.onKey(e, code);
       async function connect() {
@@ -53,8 +53,13 @@
     function credentials(note) {
       const error = h('p.error', note || '');
       let active = null;
-      const user = C.textField('Username', C.pref('lastUser', ''), { focusable: true });
-      const pass = C.textField('Password', '', { focusable: true, secret: true });
+      const user = C.textField('Username', C.pref('lastUser', ''), {
+        onsubmit: () => {
+          select(pass);
+          pass.edit();
+        },
+      });
+      const pass = C.textField('Password', '', { secret: true, onsubmit: () => signIn() });
       const select = (f) => {
         active = f;
         user.el.classList.toggle('editing', f === user);

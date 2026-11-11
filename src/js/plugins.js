@@ -92,8 +92,15 @@
     opts = opts || {};
     return new Promise((resolve) => {
       let result = null;
-      const field = C.textField(label, value || '', { secret: opts.secret });
       let o = null;
+      const field = C.textField(label, value || '', {
+        secret: opts.secret,
+        number: opts.number,
+        onsubmit: () => {
+          result = field.value;
+          o.close();
+        },
+      });
       const kb = C.keyboard(() => field, {
         cyrillic: !opts.number,
         done: 'OK',
