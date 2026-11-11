@@ -95,6 +95,15 @@ fn with_build(mut ui: Value, dir: &std::path::Path) -> anyhow::Result<Value> {
     Ok(ui)
 }
 
+/// CI's signature of the interface (scripts/sign-ui.js), passed through untouched; TVs check it themselves.
+fn signed(dir: &std::path::Path) -> anyhow::Result<Value> {
+    match std::fs::read(dir.join("ui.signed.json")) {
+        Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Value::Null),
+        Err(e) => Err(e.into()),
+    }
+}
+
 /// The files ui.json lists; nothing else in the image is served.
 fn listed(ui: &Value, path: &str) -> bool {
     ["css", "js"].iter().any(|k| ui[k].as_array().is_some_and(|files| files.iter().any(|f| f.as_str() == Some(path))))
@@ -148,7 +157,11 @@ async fn main() -> anyhow::Result<()> {
     if cfg.secret.is_empty() {
         anyhow::bail!("CINIVA_PLUGIN_SECRET is required");
     }
-    let ui = with_build(serde_json::from_slice(&std::fs::read(cfg.ui_dir.join("ui.json"))?)?, &cfg.ui_dir)?;
+    let mut ui = with_build(serde_json::from_slice(&std::fs::read(cfg.ui_dir.join("ui.json"))?)?, &cfg.ui_dir)?;
+    ui["signed"] = signed(&cfg.ui_dir)?;
+    if ui["signed"].is_null() {
+        tracing::warn!("ui.signed.json is missing: TVs keep their own interface");
+    }
     tracing::info!(version = ui["version"].as_str().unwrap_or("?"), build = ui["build"].as_str().unwrap_or("?"), "serving the TV interface");
     let app: Shared = Arc::new(App { http: reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?, ui, cfg });
 
@@ -227,6 +240,14 @@ mod tests {
         std::fs::write(dir.join("js/app.js"), "C.boot(); // changed").unwrap();
         assert_ne!(with_build(ui.clone(), &dir).unwrap()["build"], a);
         assert!(with_build(json!({ "css": [], "js": ["js/missing.js"] }), &dir).is_err());
+    }
+
+    #[test]
+    fn reads_the_signature_when_present() {
+        let dir = ui_dir("reads_the_signature_when_present");
+        assert!(signed(&dir).unwrap().is_null());
+        std::fs::write(dir.join("ui.signed.json"), r#"{"manifest":"{}","signature":"c2ln"}"#).unwrap();
+        assert_eq!(signed(&dir).unwrap()["signature"], "c2ln");
     }
 
     #[tokio::test]

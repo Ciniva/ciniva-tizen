@@ -5,3 +5,4 @@ node_modules/
 .tproject
 .project
 plugin/target/
+src/ui.signed.json
