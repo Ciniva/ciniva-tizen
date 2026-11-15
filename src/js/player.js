@@ -349,6 +349,9 @@
     const subBtn = probe.subtitles.length ? h('div.ctl.wide.f', { onclick: chooseSubs }, C.icon('cc'), h('span', 'Subtitles')) : null;
     const qualityBtn = h('div.ctl.wide.f', { onclick: chooseQuality }, C.icon('quality'), h('span', 'Quality'));
     const upNext = h('div.upnext');
+    const clockTime = h('div.pause-time');
+    const clockEnds = h('div.pause-ends');
+    const pauseClock = h('div.pause-clock', clockTime, clockEnds);
 
     const root = h('div.screen.player.ui',
       videoHost,
@@ -356,6 +359,7 @@
       h('div.player-top',
         h('div.player-titles', h('div.player-title', opts.title || ''), opts.subtitle ? h('div.player-subtitle', opts.subtitle) : null),
         info),
+      pauseClock,
       spinner,
       message,
       upNext,
@@ -545,9 +549,27 @@
       return C.api('/files/' + file.id + '/progress', { method: 'PUT', body: { position_ms: Math.floor(t * 1000), duration_ms: Math.floor(d * 1000) } }).catch(() => {});
     }
 
+    // Local time (the TV's clock) + when the film would end, shown while paused.
+    const hhmm = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    let clockTimer = null;
+    function tickClock() {
+      const now = new Date();
+      clockTime.textContent = hhmm(now);
+      const left = total() - engine.time();
+      clockEnds.textContent = left > 0 ? 'Ends at ' + hhmm(new Date(now.getTime() + left * 1000)) : '';
+    }
+    function runClock(on) {
+      clearInterval(clockTimer);
+      clockTimer = null;
+      if (!on) return;
+      tickClock();
+      clockTimer = setInterval(tickClock, 1000);
+    }
+
     function setPlaying(on) {
       C.fill(playBtn, C.icon(on ? 'pause' : 'play'));
       root.classList.toggle('paused', !on);
+      runClock(!on && !state.closed);
     }
 
     function toggle() {
@@ -943,6 +965,7 @@
       state.closed = true;
       clearTimeout(hideTimer);
       clearTimeout(scrubTimer);
+      runClock(false);
       hideUpNext();
       document.removeEventListener('visibilitychange', onVisibility);
       teardown();

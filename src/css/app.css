@@ -320,6 +320,11 @@ video.av { background: #000; }
 .stream-info { margin-top: 12px; color: var(--soft); font-size: 22px; }
 .player-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 140px 80px 60px; background: linear-gradient(0deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0)); opacity: 0; transition: opacity 0.3s ease; }
 .player.ui .player-top, .player.ui .player-bottom { opacity: 1; }
+/* Paused: local time + end time, top right, stays up even when the controls hide. */
+.pause-clock { position: absolute; top: 50px; right: 80px; text-align: right; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8); opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+.player.paused .pause-clock { opacity: 1; }
+.pause-time { font-size: 72px; font-weight: 700; line-height: 1; }
+.pause-ends { margin-top: 10px; color: var(--soft); font-size: 26px; }
 .seek-row { display: flex; align-items: center; margin-bottom: 34px; }
 .time-now, .time-end { width: 150px; font-size: 26px; }
 .time-end { text-align: right; }
